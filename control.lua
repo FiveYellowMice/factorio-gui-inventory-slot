@@ -31,7 +31,7 @@ script.on_event(defines.events.on_gui_opened, function(event)
             parent = frame,
             name = "gui-inventory-slot-test"
         }
-        gui_inventory_slot.refresh{element = button, target_stack = target_stack, options = test_slot_options}
+        gui_inventory_slot.refresh{element = button, target = target_stack, options = test_slot_options}
     end
 end)
 
@@ -45,7 +45,7 @@ script.on_event(defines.events.on_gui_click, function(event)
 
         gui_inventory_slot.click{
             element = event.element,
-            target_stack = target_stack,
+            target = target_stack,
             options = test_slot_options,
             player = player,
             button = event.button,

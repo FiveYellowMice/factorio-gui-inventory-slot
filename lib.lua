@@ -1,13 +1,15 @@
 local gui_inventory_slot = {}
 
+---Options to adjust the behaviour of the slot.
 ---@class GuiInventorySlot.Options
----@field empty_tooltip LocalisedString?
----@field empty_sprite SpritePath?
+---@field empty_tooltip LocalisedString? Display a tooltip when the slot is empty.
+---@field empty_sprite SpritePath? Display a sprite in the slot when it is empty.
 
 ---@class GuiInventorySlot.create_params
----@field parent LuaGuiElement
----@field name string
+---@field parent LuaGuiElement The parent GUI element to create the new element in.
+---@field name string Name of the GUI element.
 
+---Create a GUI element to be used for representing an inventory slot.
 ---@param params GuiInventorySlot.create_params
 ---@return LuaGuiElement
 function gui_inventory_slot.create(params)
@@ -23,18 +25,21 @@ function gui_inventory_slot.create(params)
 end
 
 ---@class GuiInventorySlot.click_params
----@field element LuaGuiElement
----@field target_stack LuaItemStack
----@field options GuiInventorySlot.Options?
----@field player LuaPlayer
----@field button defines.mouse_button_type
+---@field element LuaGuiElement An element created with `create()`.
+---@field target LuaItemStack An item stack backing this GUI inventory slot. May be different each time this function is called.
+---@field options GuiInventorySlot.Options? Options to adjust behaviours. May be different each time this function is called.
+---@field player LuaPlayer The player that clicked the element.
+---@field button defines.mouse_button_type The mouse button being clicked.
 
+---Interact with the slot as a player.
+---Call this when the GUI element has been clicked
+---(in either on_gui_click or a custom input event bound to a mouse button).
 ---@param params GuiInventorySlot.click_params
 function gui_inventory_slot.click(params)
     local player = params.player
     local cursor_stack = player.cursor_stack
     if not cursor_stack then return end
-    local target_stack = params.target_stack
+    local target_stack = params.target
 
     local pickedup = false
     local dropped = false
@@ -94,14 +99,18 @@ function gui_inventory_slot.click(params)
 end
 
 ---@class GuiInventorySlot.refresh_params
----@field element LuaGuiElement
----@field target_stack LuaItemStack
----@field options GuiInventorySlot.Options?
+---@field element LuaGuiElement An element created with `create()`.
+---@field target LuaItemStack An item stack backing this GUI inventory slot. May be different each time this function is called.
+---@field options GuiInventorySlot.Options? Options to adjust behaviours. May be different each time this function is called.
 
+---Refresh the contents displayed in the slot to reflect the actual content in a backing item stack.
+---Call this when the backing item stack may change due to reasons other than `click()`, and the GUI element is visible,
+---(e.g. during on_tick if the backing item stack can interact with inserters),
+---or when the GUI element has just been created or become visible.
 ---@param params GuiInventorySlot.refresh_params
 function gui_inventory_slot.refresh(params)
     local element = params.element
-    local target_stack = params.target_stack
+    local target_stack = params.target
     local options = params.options or {}
 
     if target_stack.valid_for_read then
