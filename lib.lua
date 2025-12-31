@@ -29,6 +29,9 @@ function gui_inventory_slot.click(element, options, player, button)
     if not cursor_stack then return end
     local target_stack = options.target_stack
 
+    local pickedup = false
+    local dropped = false
+
     if
         player.controller_type == defines.controllers.character or
         player.controller_type == defines.controllers.editor or
@@ -45,20 +48,37 @@ function gui_inventory_slot.click(element, options, player, button)
                 not target_stack.is_item_with_entity_data
             then
                 -- Try transferring
+                local old_cursor_count = cursor_stack.count
                 target_stack.transfer_stack(cursor_stack)
+                dropped = cursor_stack.count < old_cursor_count
             else
                 -- Otherwise, try swapping
-                target_stack.swap_stack(cursor_stack)
+                local ret = target_stack.swap_stack(cursor_stack)
+                pickedup = ret and cursor_stack.valid_for_read
+                dropped = ret and target_stack.valid_for_read
             end
 
         elseif button == defines.mouse_button_type.right then
             if cursor_stack.valid_for_read then
                 -- Try to put in 1 item
-                target_stack.transfer_stack(cursor_stack, 1)
+                local ret = target_stack.transfer_stack(cursor_stack, 1)
+                dropped = ret
             elseif target_stack.valid_for_read then
                 -- Take half of the stack
                 cursor_stack.transfer_stack(target_stack, math.ceil(target_stack.count / 2))
+                pickedup = cursor_stack.valid_for_read
             end
+        end
+    end
+
+    if pickedup then
+        if cursor_stack.valid_for_read and helpers.is_valid_sound_path("item-pick/"..cursor_stack.name) then
+            player.play_sound{path = "item-pick/"..cursor_stack.name}
+        end
+    end
+    if dropped then
+        if target_stack.valid_for_read and helpers.is_valid_sound_path("item-drop/"..target_stack.name) then
+            player.play_sound{path = "item-drop/"..target_stack.name}
         end
     end
 
