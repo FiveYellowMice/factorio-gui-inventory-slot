@@ -60,7 +60,7 @@ function gui_inventory_slot.refresh(element, target)
     if target.valid_for_read then
         element.sprite = "item/"..target.name
         element.quality = target.quality
-        element.number = target.count
+        element.number = not target.prototype.has_flag("not-stackable") and target.count or nil
         element.elem_tooltip = {
             type = "item",
             name = target.name,
