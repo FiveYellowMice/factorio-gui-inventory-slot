@@ -1,17 +1,19 @@
 local gui_inventory_slot = {}
 
----@class GuiInventorySlotOptions
----@field target_stack LuaItemStack
+---@class GuiInventorySlot.Options
 ---@field empty_tooltip LocalisedString?
 ---@field empty_sprite SpritePath?
 
----@param parent LuaGuiElement
----@param name string
+---@class GuiInventorySlot.create_params
+---@field parent LuaGuiElement
+---@field name string
+
+---@param params GuiInventorySlot.create_params
 ---@return LuaGuiElement
-function gui_inventory_slot.create(parent, name)
-    local button = parent.add{
+function gui_inventory_slot.create(params)
+    local button = params.parent.add{
         type = "sprite-button",
-        name = name,
+        name = params.name,
         style = "inventory_slot",
         mouse_button_filter = {"left", "middle", "right"},
     }
@@ -20,14 +22,19 @@ function gui_inventory_slot.create(parent, name)
     return button
 end
 
----@param element LuaGuiElement
----@param options GuiInventorySlotOptions
----@param player LuaPlayer
----@param button defines.mouse_button_type
-function gui_inventory_slot.click(element, options, player, button)
+---@class GuiInventorySlot.click_params
+---@field element LuaGuiElement
+---@field target_stack LuaItemStack
+---@field options GuiInventorySlot.Options?
+---@field player LuaPlayer
+---@field button defines.mouse_button_type
+
+---@param params GuiInventorySlot.click_params
+function gui_inventory_slot.click(params)
+    local player = params.player
     local cursor_stack = player.cursor_stack
     if not cursor_stack then return end
-    local target_stack = options.target_stack
+    local target_stack = params.target_stack
 
     local pickedup = false
     local dropped = false
@@ -37,7 +44,7 @@ function gui_inventory_slot.click(element, options, player, button)
         player.controller_type == defines.controllers.editor or
         player.controller_type == defines.controllers.god
     then
-        if button == defines.mouse_button_type.left then
+        if params.button == defines.mouse_button_type.left then
             if -- If they should be stackable to each other
                 cursor_stack.valid_for_read and
                 target_stack.valid_for_read and
@@ -45,7 +52,8 @@ function gui_inventory_slot.click(element, options, player, button)
                 target_stack.quality == cursor_stack.quality and
                 target_stack.health == cursor_stack.health and
                 not target_stack.is_item_with_label and
-                not target_stack.is_item_with_entity_data
+                not target_stack.is_item_with_entity_data and
+                not target_stack.is_armor
             then
                 -- Try transferring
                 local old_cursor_count = cursor_stack.count
@@ -58,7 +66,7 @@ function gui_inventory_slot.click(element, options, player, button)
                 dropped = ret and target_stack.valid_for_read
             end
 
-        elseif button == defines.mouse_button_type.right then
+        elseif params.button == defines.mouse_button_type.right then
             if cursor_stack.valid_for_read then
                 -- Try to put in 1 item
                 local ret = target_stack.transfer_stack(cursor_stack, 1)
@@ -82,13 +90,20 @@ function gui_inventory_slot.click(element, options, player, button)
         end
     end
 
-    gui_inventory_slot.refresh(element, options)
+    gui_inventory_slot.refresh(params --[[@as GuiInventorySlot.refresh_params]])
 end
 
----@param element LuaGuiElement
----@param options GuiInventorySlotOptions
-function gui_inventory_slot.refresh(element, options)
-    local target_stack = options.target_stack
+---@class GuiInventorySlot.refresh_params
+---@field element LuaGuiElement
+---@field target_stack LuaItemStack
+---@field options GuiInventorySlot.Options?
+
+---@param params GuiInventorySlot.refresh_params
+function gui_inventory_slot.refresh(params)
+    local element = params.element
+    local target_stack = params.target_stack
+    local options = params.options or {}
+
     if target_stack.valid_for_read then
         element.sprite = "item/"..target_stack.name
         element.quality = target_stack.quality

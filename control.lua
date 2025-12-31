@@ -27,12 +27,11 @@ script.on_event(defines.events.on_gui_opened, function(event)
 
         local target_stack = player.opened.get_inventory(defines.inventory.chest)[1]
 
-        local button = gui_inventory_slot.create(frame, "gui-inventory-slot-test")
-        gui_inventory_slot.refresh(button, {
-            target_stack = target_stack,
-            empty_sprite = test_slot_options.empty_sprite,
-            empty_tooltip = test_slot_options.empty_tooltip,
-        })
+        local button = gui_inventory_slot.create{
+            parent = frame,
+            name = "gui-inventory-slot-test"
+        }
+        gui_inventory_slot.refresh{element = button, target_stack = target_stack, options = test_slot_options}
     end
 end)
 
@@ -44,10 +43,12 @@ script.on_event(defines.events.on_gui_click, function(event)
         if player.opened.object_name ~= "LuaEntity" then return end
         local target_stack = player.opened.get_inventory(defines.inventory.chest)[1]
 
-        gui_inventory_slot.click(event.element, {
+        gui_inventory_slot.click{
+            element = event.element,
             target_stack = target_stack,
-            empty_sprite = test_slot_options.empty_sprite,
-            empty_tooltip = test_slot_options.empty_tooltip,
-        }, player, event.button)
+            options = test_slot_options,
+            player = player,
+            button = event.button,
+        }
     end
 end)
