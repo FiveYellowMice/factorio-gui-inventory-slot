@@ -29,30 +29,36 @@ function gui_inventory_slot.click(element, options, player, button)
     if not cursor_stack then return end
     local target_stack = options.target_stack
 
-    if button == defines.mouse_button_type.left then
-        if -- If they should be stackable to each other
-            cursor_stack.valid_for_read and
-            target_stack.valid_for_read and
-            target_stack.name == cursor_stack.name and
-            target_stack.quality == cursor_stack.quality and
-            target_stack.health == cursor_stack.health and
-            not target_stack.is_item_with_label and
-            not target_stack.is_item_with_entity_data
-        then
-            -- Try transferring as long as items are in cusor
-            target_stack.transfer_stack(cursor_stack)
-        else
-            -- Otherwise, try swapping
-            target_stack.swap_stack(cursor_stack)
-        end
+    if
+        player.controller_type == defines.controllers.character or
+        player.controller_type == defines.controllers.editor or
+        player.controller_type == defines.controllers.god
+    then
+        if button == defines.mouse_button_type.left then
+            if -- If they should be stackable to each other
+                cursor_stack.valid_for_read and
+                target_stack.valid_for_read and
+                target_stack.name == cursor_stack.name and
+                target_stack.quality == cursor_stack.quality and
+                target_stack.health == cursor_stack.health and
+                not target_stack.is_item_with_label and
+                not target_stack.is_item_with_entity_data
+            then
+                -- Try transferring
+                target_stack.transfer_stack(cursor_stack)
+            else
+                -- Otherwise, try swapping
+                target_stack.swap_stack(cursor_stack)
+            end
 
-    elseif button == defines.mouse_button_type.right then
-        if cursor_stack.valid_for_read then
-            -- Try to put in 1 item
-            target_stack.transfer_stack(cursor_stack, 1)
-        elseif target_stack.valid_for_read then
-            -- Take half of the stack
-            cursor_stack.transfer_stack(target_stack, math.ceil(target_stack.count / 2))
+        elseif button == defines.mouse_button_type.right then
+            if cursor_stack.valid_for_read then
+                -- Try to put in 1 item
+                target_stack.transfer_stack(cursor_stack, 1)
+            elseif target_stack.valid_for_read then
+                -- Take half of the stack
+                cursor_stack.transfer_stack(target_stack, math.ceil(target_stack.count / 2))
+            end
         end
     end
 
