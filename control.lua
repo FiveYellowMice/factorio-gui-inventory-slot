@@ -1,5 +1,10 @@
 local gui_inventory_slot = require("lib")
 
+local test_slot_options = {
+    empty_sprite = "utility/empty_ammo_slot",
+    empty_tooltip = "Ammo\n[font=default-large][item=firearm-magazine][/font] Firearm magazine\n",
+}
+
 script.on_event(defines.events.on_gui_opened, function(event)
     if event.entity and event.entity.name == "iron-chest" then
         local player = game.get_player(event.player_index)
@@ -23,7 +28,11 @@ script.on_event(defines.events.on_gui_opened, function(event)
         local target_stack = player.opened.get_inventory(defines.inventory.chest)[1]
 
         local button = gui_inventory_slot.create(frame, "gui-inventory-slot-test")
-        gui_inventory_slot.refresh(button, target_stack)
+        gui_inventory_slot.refresh(button, {
+            target_stack = target_stack,
+            empty_sprite = test_slot_options.empty_sprite,
+            empty_tooltip = test_slot_options.empty_tooltip,
+        })
     end
 end)
 
@@ -35,6 +44,10 @@ script.on_event(defines.events.on_gui_click, function(event)
         if player.opened.object_name ~= "LuaEntity" then return end
         local target_stack = player.opened.get_inventory(defines.inventory.chest)[1]
 
-        gui_inventory_slot.click(event.element, target_stack, player, event.button)
+        gui_inventory_slot.click(event.element, {
+            target_stack = target_stack,
+            empty_sprite = test_slot_options.empty_sprite,
+            empty_tooltip = test_slot_options.empty_tooltip,
+        }, player, event.button)
     end
 end)
