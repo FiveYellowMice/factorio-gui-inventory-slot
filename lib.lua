@@ -31,10 +31,8 @@ function gui_inventory_slot.click(element, target, player, button)
             target.name == cursor_stack.name and
             target.quality == cursor_stack.quality and
             target.health == cursor_stack.health and
-            target.prototype.stack_size ~= 1 and
-            cursor_stack.prototype.stack_size ~= 1 and
-            not target.item and
-            not cursor_stack.item
+            not target.is_item_with_label and
+            not target.is_item_with_entity_data
         then
             -- Try transferring as long as items are in cusor
             target.transfer_stack(cursor_stack)
@@ -63,10 +61,16 @@ function gui_inventory_slot.refresh(element, target)
         element.sprite = "item/"..target.name
         element.quality = target.quality
         element.number = target.count
+        element.elem_tooltip = {
+            type = "item",
+            name = target.name,
+            quality = target.quality.name,
+        }
     else
         element.sprite = nil
         element.quality = nil
         element.number = nil
+        element.elem_tooltip = nil
     end
 end
 
