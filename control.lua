@@ -1,4 +1,4 @@
-local gui_inventory_slot = require("lib")
+local gui_inventory_slot = require("lib.v1")
 
 local test_slot_options = {
     empty_sprite = "utility/empty_ammo_slot",
