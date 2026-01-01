@@ -141,7 +141,7 @@ function gui_inventory_slot.refresh(params)
         element.quality = target_stack.quality
         element.number = not target_stack.prototype.has_flag("not-stackable") and target_stack.count or nil
         element.elem_tooltip = {
-            type = "item",
+            type = "item-with-quality",
             name = target_stack.name,
             quality = target_stack.quality.name,
         }
