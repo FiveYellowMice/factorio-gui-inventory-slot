@@ -1,0 +1,11 @@
+{
+    "name": "gui-inventory-slot-test",
+    "version": "0.0.1",
+    "title": "GUI Inventory Slot Test",
+    "author": "FiveYellowMice",
+    "factorio_version": "2.0",
+    "dependencies": [
+        "base",
+        "gui-inventory-slot"
+    ]
+}
