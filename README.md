@@ -13,5 +13,3 @@ Lmitations compared to vanilla GUI inventory slots (to be improved in the future
 * Filters and bars cannot be modified or shown.
 * Item ghosts cannot be modified or shown.
 * The behaviour of inserting items with data may be inconistent with vanilla slots.
-* Shift/control/alt clicking behave the same as regular clicking.
-
