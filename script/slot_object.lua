@@ -8,7 +8,9 @@ local SlotObject = {}
 ---@class GuiInventorySlot.SlotObject
 ---@field private registration_number uint64 Registration number of the element.
 ---@field public element LuaGuiElement The root GUI element.
----@field public target GuiInventorySlot.Target The target stack.
+---@field private target_stack LuaItemStack? The target stack.
+---@field private target_inventory LuaInventory? The target inventory, if provided by the caller.
+---@field private target_stack_index uint32? The index of the target stack in target inventory, if provided by the caller.
 ---@field public options GuiInventorySlot.Options
 SlotObject.prototype = {}
 SlotObject.prototype.__index = SlotObject.prototype
@@ -16,12 +18,14 @@ SlotObject.prototype.__index = SlotObject.prototype
 ---Private data stored in the `constants.gui_tag_private` tag on the root element.
 ---@class (exact) GuiInventorySlot.PrivateTags
 
+---Specifies a target stack for the items to be actually stored.
 ---@alias GuiInventorySlot.Target
 ---| nil
 ---| LuaItemStack
 ---| GuiInventorySlot.Target.InventoryIndexPair
 
----Specifies a target slot with an inventory and an index.
+---Specifies a target stack with an inventory and a slot index.
+---If the inventory belongs to an entity, doing so enables ghost item placement.
 ---@class (exact) GuiInventorySlot.Target.InventoryIndexPair
 ---@field inventory LuaInventory
 ---@field stack_index uint32
@@ -84,13 +88,13 @@ function SlotObject.create(params)
     local instance = setmetatable({
         registration_number = registration_number,
         element = element,
-        target = params.target,
         options = params.options or {},
     }--[[@as GuiInventorySlot.SlotObject]], SlotObject.prototype)
 
     storage.slot_objects[registration_number] = instance
     PlayerData.get_or_create(params.parent.player_index).slot_objects[element.index] = instance
 
+    instance:set_target(params.target)
     instance:refresh()
 
     return instance
@@ -117,25 +121,43 @@ function SlotObject.prototype:valid()
     return self.element.valid
 end
 
+---@return GuiInventorySlot.Target
+function SlotObject.prototype:get_target()
+    if self.target_inventory and self.target_stack_index then
+        return {
+            inventory = self.target_inventory,
+            stack_index = self.target_stack_index,
+        }
+    else
+        return self.target_stack
+    end
+end
+
+---@param target GuiInventorySlot.Target
+function SlotObject.prototype:set_target(target)
+    if type(target) == "userdata" and target.object_name == "LuaItemStack" then
+        self.target_inventory = nil
+        self.target_stack_index = nil
+        self.target_stack = target
+    elseif type(target) == "table" then
+        self.target_inventory = target.inventory
+        self.target_stack_index = target.stack_index
+        self.target_stack = target.inventory[target.stack_index]
+    else
+        self.target_inventory = nil
+        self.target_stack_index = nil
+        self.target_stack = nil
+    end
+end
+
 ---Get a valid target stack.
 ---@private
 ---@return LuaItemStack?
 function SlotObject.prototype:get_target_stack()
-    if not self.target then
-        return
-    elseif self.target.object_name == "LuaItemStack" then
-        if self.target.valid then
-            return self.target--[[@as LuaItemStack]]
-        end
+    if self.target_stack and self.target_stack.valid then
+        return self.target_stack
     else
-        -- InventoryIndexPair
-        local inventory = self.target.inventory
-        if inventory.valid then
-            local stack = inventory[self.target.stack_index]
-            if stack then
-                return stack
-            end
-        end
+        return nil
     end
 end
 
@@ -143,13 +165,12 @@ end
 ---@private
 ---@return { name: string, quality: string, count: integer }?
 function SlotObject.prototype:get_target_ghost()
-    if type(self.target) ~= "table" or not self.target.inventory then return end
+    if not self.target_inventory or not self.target_stack_index then return end
 
-    local inventory = self.target.inventory
-    if not inventory.valid then return end
-    if not inventory.index or not inventory.entity_owner then return end
+    if not self.target_inventory.valid then return end
+    if not self.target_inventory.index or not self.target_inventory.entity_owner then return end
 
-    local item_request_proxy = inventory.entity_owner.item_request_proxy
+    local item_request_proxy = self.target_inventory.entity_owner.item_request_proxy
     if not item_request_proxy then return end
 
     for plan_kind, plan_list in pairs{[1] = item_request_proxy.insert_plan, [-1] = item_request_proxy.removal_plan} do
@@ -158,8 +179,8 @@ function SlotObject.prototype:get_target_ghost()
             if not inventory_positions then goto continue end
             for _, inventory_position in ipairs(inventory_positions) do
                 if
-                    inventory_position.inventory == inventory.index and
-                    inventory_position.stack + 1 == self.target.stack_index
+                    inventory_position.inventory == self.target_inventory.index and
+                    inventory_position.stack + 1 == self.target_stack_index
                 then
                     return {
                         name = plan.id.name,

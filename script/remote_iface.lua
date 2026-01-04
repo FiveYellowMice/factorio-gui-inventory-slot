@@ -31,7 +31,7 @@ end
 function remote_iface.get_target(element)
     local slot_object = SlotObject.get_by_element(element)
     if not slot_object then return end
-    return slot_object.target
+    return slot_object:get_target()
 end
 
 ---@param element LuaGuiElement An element created with `create()`.
@@ -39,7 +39,7 @@ end
 function remote_iface.set_target(element, target)
     local slot_object = SlotObject.get_by_element(element)
     if not slot_object then return end
-    slot_object.target = validate_args.target(target)
+    slot_object:set_target(validate_args.target(target))
     slot_object:refresh()
 end
 
@@ -89,8 +89,8 @@ function validate_args.target(target)
     if target == nil then
         return
     elseif type(target) == "userdata" then
-        if target.object_name ~= "LuaItemStack" then
-            error("gui-inventory-slot: target must be a LuaItemStack or a GuiInventorySlot.InventoryIndexPair")
+        if target.object_name ~= "LuaItemStack" or not target.valid then
+            error("gui-inventory-slot: target must be a valid LuaItemStack or a GuiInventorySlot.Target.InventoryIndexPair")
         end
     elseif type(target) == "table" then
         for k, _ in pairs(target) do
@@ -98,8 +98,8 @@ function validate_args.target(target)
                 error("gui-inventory-slot: target contains invalid key "..k)
             end
         end
-        if type(target.inventory) ~= "userdata" or target.inventory.object_name ~= "LuaInventory" then
-            error("gui-inventory-slot: target.inventory must be a LuaInventory")
+        if type(target.inventory) ~= "userdata" or target.inventory.object_name ~= "LuaInventory" or not target.inventory.valid then
+            error("gui-inventory-slot: target.inventory must be a valid LuaInventory")
         end
         if type(target.stack_index) ~= "number" or target.stack_index <= 0 then
             error("gui-inventory-slot: target.stack_index must be a positive number")
