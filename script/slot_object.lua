@@ -35,6 +35,11 @@ SlotObject.prototype.__index = SlotObject.prototype
 ---@field empty_tooltip LocalisedString? Display a tooltip when the slot is empty.
 ---@field empty_sprite SpritePath? Display a sprite in the slot when it is empty.
 
+---@class (exact) GuiInventorySlot.ItemCount
+---@field name string
+---@field quality string
+---@field count uint32
+
 
 function SlotObject.on_init()
     ---Pool of SlotObject's, indexed by registration number.
@@ -161,43 +166,50 @@ function SlotObject.prototype:get_target_stack()
     end
 end
 
----Get the first insert or removal plan in the item request proxy corresponding to the target stack.
----@private
----@return { name: string, quality: string, count: integer }?
-function SlotObject.prototype:get_target_ghost()
-    if not self.target_inventory or not self.target_stack_index then return end
+---@enum GuiInventorySlot.ItemRequestKind
+SlotObject.item_request_kind = {
+    insert = 1,
+    remove = 2,
+}
 
+---Get the first insert or removal request to the target stack in the item request proxy.
+---@private
+---@param kind GuiInventorySlot.ItemRequestKind
+---@return GuiInventorySlot.ItemCount?
+function SlotObject.prototype:get_item_request(kind)
+    if not self.target_inventory or not self.target_stack_index then return end
     if not self.target_inventory.valid then return end
     if not self.target_inventory.index or not self.target_inventory.entity_owner then return end
 
     local item_request_proxy = self.target_inventory.entity_owner.item_request_proxy
     if not item_request_proxy then return end
 
-    for plan_kind, plan_list in pairs{[1] = item_request_proxy.insert_plan, [-1] = item_request_proxy.removal_plan} do
-        for _, plan in ipairs(plan_list) do
-            local inventory_positions = plan.items.in_inventory
-            if not inventory_positions then goto continue end
-            for _, inventory_position in ipairs(inventory_positions) do
-                if
-                    inventory_position.inventory == self.target_inventory.index and
-                    inventory_position.stack + 1 == self.target_stack_index
-                then
-                    return {
-                        name = plan.id.name,
-                        quality = plan.id.quality or "normal",
-                        count = (inventory_position.count or 1) * plan_kind,
-                    }
-                end
+    local plan_list = kind == SlotObject.item_request_kind.insert and item_request_proxy.insert_plan or item_request_proxy.removal_plan
+
+    for _, plan in ipairs(plan_list) do
+        local inventory_positions = plan.items.in_inventory
+        if not inventory_positions then goto continue end
+        for _, inventory_position in ipairs(inventory_positions) do
+            if
+                inventory_position.inventory == self.target_inventory.index and
+                inventory_position.stack + 1 == self.target_stack_index
+            then
+                return {
+                    name = plan.id.name,
+                    quality = plan.id.quality or "normal",
+                    count = inventory_position.count or 1,
+                }
             end
-            ::continue::
         end
+        ::continue::
     end
 end
 
 ---Refresh the appearance of the GUI element to reflect the contents of the target.
 function SlotObject.prototype:refresh()
     local target_stack = self:get_target_stack()
-    local target_ghost = self:get_target_ghost()
+    local ghost_insert = self:get_item_request(SlotObject.item_request_kind.insert)
+    local ghost_remove = self:get_item_request(SlotObject.item_request_kind.remove)
 
     if target_stack and target_stack.valid_for_read then
         self.element.sprite = "item/"..target_stack.name
@@ -209,34 +221,28 @@ function SlotObject.prototype:refresh()
             name = target_stack.name,
             quality = target_stack.quality.name,
         }
+        self.element.inside_sprite.visible = false
 
-        if target_ghost and target_ghost.count > 0 then
-            self.element.inside_sprite.visible = false
+        if ghost_insert then
             self.element.inside_flow.ghost_number.visible = true
-            self.element.inside_flow.ghost_number.caption = target_ghost.count
-        elseif target_ghost and target_ghost.count < 0 then
-            self.element.inside_sprite.visible = true
-            self.element.inside_sprite.enabled = true
-            self.element.inside_sprite.sprite = "utility/deconstruction_mark"
-            self.element.inside_flow.ghost_number.visible = false
+            self.element.inside_flow.ghost_number.caption = ghost_insert.count
         else
-            self.element.inside_sprite.visible = false
             self.element.inside_flow.ghost_number.visible = false
         end
 
     else
-        if target_ghost and target_ghost.count > 0 then
+        if ghost_insert then
             self.element.sprite = nil
             self.element.quality = nil
             self.element.number = nil
-            self.element.elem_tooltip = nil
             self.element.tooltip = nil
+            self.element.elem_tooltip = nil
             self.element.inside_sprite.visible = true
             self.element.inside_sprite.enabled = false
-            self.element.inside_sprite.sprite = "item/"..target_ghost.name
-            self.element.inside_sprite.quality = target_ghost.quality
+            self.element.inside_sprite.sprite = "item/"..ghost_insert.name
+            self.element.inside_sprite.quality = ghost_insert.quality
             self.element.inside_flow.ghost_number.visible = true
-            self.element.inside_flow.ghost_number.caption = target_ghost.count
+            self.element.inside_flow.ghost_number.caption = ghost_insert.count
 
         else
             self.element.sprite = self.options.empty_sprite
@@ -247,6 +253,13 @@ function SlotObject.prototype:refresh()
             self.element.inside_sprite.visible = false
             self.element.inside_flow.ghost_number.visible = false
         end
+    end
+
+    if ghost_remove then
+        self.element.inside_sprite.visible = true
+        self.element.inside_sprite.enabled = true
+        self.element.inside_sprite.sprite = "utility/deconstruction_mark"
+        self.element.inside_sprite.quality = nil
     end
 end
 
