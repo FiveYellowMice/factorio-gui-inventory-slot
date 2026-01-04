@@ -139,8 +139,9 @@ function SlotObject.prototype:get_target_stack()
     end
 end
 
+---Get the first insert or removal plan in the item request proxy corresponding to the target stack.
 ---@private
----@return { name: string, quality: string, count: uint32 }?
+---@return { name: string, quality: string, count: integer }?
 function SlotObject.prototype:get_target_ghost()
     if type(self.target) ~= "table" or not self.target.inventory then return end
 
@@ -151,21 +152,23 @@ function SlotObject.prototype:get_target_ghost()
     local item_request_proxy = inventory.entity_owner.item_request_proxy
     if not item_request_proxy then return end
 
-    for _, insert_plan in ipairs(item_request_proxy.insert_plan) do
-        local inventory_positions = insert_plan.items.in_inventory
-        if inventory_positions then
+    for plan_kind, plan_list in pairs{[1] = item_request_proxy.insert_plan, [-1] = item_request_proxy.removal_plan} do
+        for _, plan in ipairs(plan_list) do
+            local inventory_positions = plan.items.in_inventory
+            if not inventory_positions then goto continue end
             for _, inventory_position in ipairs(inventory_positions) do
                 if
                     inventory_position.inventory == inventory.index and
                     inventory_position.stack + 1 == self.target.stack_index
                 then
                     return {
-                        name = insert_plan.id.name,
-                        quality = insert_plan.id.quality or "normal",
-                        count = inventory_position.count or 1,
+                        name = plan.id.name,
+                        quality = plan.id.quality or "normal",
+                        count = (inventory_position.count or 1) * plan_kind,
                     }
                 end
             end
+            ::continue::
         end
     end
 end
@@ -185,17 +188,23 @@ function SlotObject.prototype:refresh()
             name = target_stack.name,
             quality = target_stack.quality.name,
         }
-        self.element.inside_sprite.visible = false
 
-        if target_ghost then
+        if target_ghost and target_ghost.count > 0 then
+            self.element.inside_sprite.visible = false
             self.element.inside_flow.ghost_number.visible = true
             self.element.inside_flow.ghost_number.caption = target_ghost.count
+        elseif target_ghost and target_ghost.count < 0 then
+            self.element.inside_sprite.visible = true
+            self.element.inside_sprite.enabled = true
+            self.element.inside_sprite.sprite = "utility/deconstruction_mark"
+            self.element.inside_flow.ghost_number.visible = false
         else
+            self.element.inside_sprite.visible = false
             self.element.inside_flow.ghost_number.visible = false
         end
 
     else
-        if target_ghost then
+        if target_ghost and target_ghost.count > 0 then
             self.element.sprite = nil
             self.element.quality = nil
             self.element.number = nil
