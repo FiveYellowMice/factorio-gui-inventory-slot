@@ -27,7 +27,7 @@ function remote_iface.refresh(element)
 end
 
 ---@param element LuaGuiElement An element created with `create()`.
----@return LuaItemStack?
+---@return GuiInventorySlot.Target?
 function remote_iface.get_target(element)
     local slot_object = SlotObject.get_by_element(element)
     if not slot_object then return end
@@ -81,13 +81,31 @@ function validate_args.create_params(params)
     return params
 end
 
----@param target LuaItemStack?
----@return LuaItemStack?
+local valid_inventory_index_pair_keys = util.list_to_map{"inventory", "stack_index"}
+
+---@param target GuiInventorySlot.Target
+---@return GuiInventorySlot.Target
 function validate_args.target(target)
-    if target == nil then return end
-    if type(target) ~= "userdata" or target.object_name ~= "LuaItemStack" then
-        error("gui-inventory-slot: target must be a LuaItemStack")
+    if target == nil then
+        return
+    elseif type(target) == "userdata" then
+        if target.object_name ~= "LuaItemStack" then
+            error("gui-inventory-slot: target must be a LuaItemStack or a GuiInventorySlot.InventoryIndexPair")
+        end
+    elseif type(target) == "table" then
+        for k, _ in pairs(target) do
+            if not valid_inventory_index_pair_keys[k] then
+                error("gui-inventory-slot: target contains invalid key "..k)
+            end
+        end
+        if type(target.inventory) ~= "userdata" or target.inventory.object_name ~= "LuaInventory" then
+            error("gui-inventory-slot: target.inventory must be a LuaInventory")
+        end
+        if type(target.stack_index) ~= "number" or target.stack_index <= 0 then
+            error("gui-inventory-slot: target.stack_index must be a positive number")
+        end
     end
+
     return target
 end
 

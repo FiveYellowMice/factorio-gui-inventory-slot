@@ -8,13 +8,23 @@ local SlotObject = {}
 ---@class GuiInventorySlot.SlotObject
 ---@field private registration_number uint64 Registration number of the element.
 ---@field public element LuaGuiElement The root GUI element.
----@field public target LuaItemStack? The target stack.
+---@field public target GuiInventorySlot.Target The target stack.
 ---@field public options GuiInventorySlot.Options
 SlotObject.prototype = {}
 SlotObject.prototype.__index = SlotObject.prototype
 
 ---Private data stored in the `constants.gui_tag_private` tag on the root element.
 ---@class (exact) GuiInventorySlot.PrivateTags
+
+---@alias GuiInventorySlot.Target
+---| nil
+---| LuaItemStack
+---| GuiInventorySlot.Target.InventoryIndexPair
+
+---Specifies a target slot with an inventory and an index.
+---@class (exact) GuiInventorySlot.Target.InventoryIndexPair
+---@field inventory LuaInventory
+---@field stack_index uint32
 
 ---Options to adjust the behaviour of the slot.
 ---@class (exact) GuiInventorySlot.Options
@@ -32,7 +42,7 @@ end
 ---@class GuiInventorySlot.create_params
 ---@field parent LuaGuiElement The parent GUI element to create the new element in.
 ---@field name string Name of the GUI element.
----@field target LuaItemStack? Where the items are actually stored.
+---@field target GuiInventorySlot.Target Where the items are actually stored.
 ---@field options GuiInventorySlot.Options? Options to adjust the behaviour of the slot.
 
 ---@param params GuiInventorySlot.create_params
@@ -46,6 +56,27 @@ function SlotObject.create(params)
         tags = {
             [constants.gui_tag_private] = {}--[[@as GuiInventorySlot.PrivateTags]],
         },
+    }
+    element.add{
+        type = "sprite-button",
+        name = "inside_sprite",
+        style = constants.style_prefix.."inside_sprite",
+        ignored_by_interaction = true,
+        visible = false,
+        enabled = false,
+    }
+    element.add{
+        type = "flow",
+        name = "inside_flow",
+        direction = "vertical",
+        style = constants.style_prefix.."inside_flow",
+    }
+    element.inside_flow.add{
+        type = "label",
+        name = "ghost_number",
+        style = constants.style_prefix.."ghost_number",
+        ignored_by_interaction = true,
+        visible = false,
     }
 
     local registration_number = script.register_on_object_destroyed(element)
@@ -90,33 +121,102 @@ end
 ---@private
 ---@return LuaItemStack?
 function SlotObject.prototype:get_target_stack()
-    if self.target and self.target.valid then
-        return self.target
+    if not self.target then
+        return
+    elseif self.target.object_name == "LuaItemStack" then
+        if self.target.valid then
+            return self.target--[[@as LuaItemStack]]
+        end
     else
-        return nil
+        -- InventoryIndexPair
+        local inventory = self.target.inventory
+        if inventory.valid then
+            local stack = inventory[self.target.stack_index]
+            if stack then
+                return stack
+            end
+        end
+    end
+end
+
+---@private
+---@return { name: string, quality: string, count: uint32 }?
+function SlotObject.prototype:get_target_ghost()
+    if type(self.target) ~= "table" or not self.target.inventory then return end
+
+    local inventory = self.target.inventory
+    if not inventory.valid then return end
+    if not inventory.index or not inventory.entity_owner then return end
+
+    local item_request_proxy = inventory.entity_owner.item_request_proxy
+    if not item_request_proxy then return end
+
+    for _, insert_plan in ipairs(item_request_proxy.insert_plan) do
+        local inventory_positions = insert_plan.items.in_inventory
+        if inventory_positions then
+            for _, inventory_position in ipairs(inventory_positions) do
+                if
+                    inventory_position.inventory == inventory.index and
+                    inventory_position.stack + 1 == self.target.stack_index
+                then
+                    return {
+                        name = insert_plan.id.name,
+                        quality = insert_plan.id.quality or "normal",
+                        count = inventory_position.count or 1,
+                    }
+                end
+            end
+        end
     end
 end
 
 ---Refresh the appearance of the GUI element to reflect the contents of the target.
 function SlotObject.prototype:refresh()
     local target_stack = self:get_target_stack()
+    local target_ghost = self:get_target_ghost()
 
     if target_stack and target_stack.valid_for_read then
         self.element.sprite = "item/"..target_stack.name
         self.element.quality = target_stack.quality
         self.element.number = not target_stack.prototype.has_flag("not-stackable") and target_stack.count or nil
+        self.element.tooltip = nil
         self.element.elem_tooltip = {
             type = "item-with-quality",
             name = target_stack.name,
             quality = target_stack.quality.name,
         }
-        self.element.tooltip = nil
+        self.element.inside_sprite.visible = false
+
+        if target_ghost then
+            self.element.inside_flow.ghost_number.visible = true
+            self.element.inside_flow.ghost_number.caption = target_ghost.count
+        else
+            self.element.inside_flow.ghost_number.visible = false
+        end
+
     else
-        self.element.sprite = self.options.empty_sprite
-        self.element.quality = nil
-        self.element.number = nil
-        self.element.elem_tooltip = nil
-        self.element.tooltip = self.options.empty_tooltip
+        if target_ghost then
+            self.element.sprite = nil
+            self.element.quality = nil
+            self.element.number = nil
+            self.element.elem_tooltip = nil
+            self.element.tooltip = nil
+            self.element.inside_sprite.visible = true
+            self.element.inside_sprite.enabled = false
+            self.element.inside_sprite.sprite = "item/"..target_ghost.name
+            self.element.inside_sprite.quality = target_ghost.quality
+            self.element.inside_flow.ghost_number.visible = true
+            self.element.inside_flow.ghost_number.caption = target_ghost.count
+
+        else
+            self.element.sprite = self.options.empty_sprite
+            self.element.quality = nil
+            self.element.number = nil
+            self.element.elem_tooltip = nil
+            self.element.tooltip = self.options.empty_tooltip
+            self.element.inside_sprite.visible = false
+            self.element.inside_flow.ghost_number.visible = false
+        end
     end
 end
 

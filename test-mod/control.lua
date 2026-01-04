@@ -19,12 +19,13 @@ script.on_event(defines.events.on_gui_opened, function(event)
             },
         }
 
-        local target_stack = player.opened.get_inventory(defines.inventory.chest)[1]
-
         remote.call("gui-inventory-slot", "create", {
             parent = frame,
             name = "gui-inventory-slot-test",
-            target = target_stack,
+            target = {
+                inventory = player.opened.get_inventory(defines.inventory.chest) or error(),
+                stack_index = 1,
+            },
             options = {
                 empty_sprite = "utility/empty_ammo_slot",
                 empty_tooltip = "Ammo\n[item=firearm-magazine] Firearm magazine",
