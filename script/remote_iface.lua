@@ -91,11 +91,18 @@ function validate_args.target(target)
     return target
 end
 
+local valid_options = util.list_to_map{"empty_sprite", "empty_tooltip"}
+
 ---@param options GuiInventorySlot.Options
 ---@return GuiInventorySlot.Options
 function validate_args.options(options)
     if type(options) ~= "table" then
         error("gui-inventory-slot: options must be a table")
+    end
+    for k, _ in pairs(options) do
+        if not valid_options[k] then
+            error("gui-inventory-slot: options contains invalid key "..k)
+        end
     end
     if options.empty_sprite then
         if type(options.empty_sprite) ~= "string" or not helpers.is_valid_sprite_path(options.empty_sprite) then
