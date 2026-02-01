@@ -205,6 +205,129 @@ function SlotObject.prototype:get_item_request(kind)
     end
 end
 
+---Remove item requests to the target stack from the item request proxy.
+---@private
+---@param kind GuiInventorySlot.ItemRequestKind
+function SlotObject.prototype:remove_item_requests(kind)
+    if not self.target_inventory or not self.target_stack_index then return end
+    if not self.target_inventory.valid then return end
+    if not self.target_inventory.index or not self.target_inventory.entity_owner then return end
+
+    local item_request_proxy = self.target_inventory.entity_owner.item_request_proxy
+    if not item_request_proxy then return end
+
+    local plan_list = kind == SlotObject.item_request_kind.insert and item_request_proxy.insert_plan or item_request_proxy.removal_plan
+
+    for _, plan in ipairs(plan_list) do
+        local inventory_positions = plan.items.in_inventory
+        if not inventory_positions then goto continue end
+        local new_inventory_positions = {}
+        for i, inventory_position in ipairs(inventory_positions) do
+            if
+                inventory_position.inventory == self.target_inventory.index and
+                inventory_position.stack + 1 == self.target_stack_index
+            then
+                --remove if inventory position matches
+            else
+                table.insert(new_inventory_positions, inventory_position)
+            end
+        end
+        plan.items.in_inventory = new_inventory_positions
+        ::continue::
+    end
+
+    -- Apply
+    if kind == SlotObject.item_request_kind.insert then
+        item_request_proxy.insert_plan = plan_list
+    else
+        item_request_proxy.removal_plan = plan_list
+    end
+end
+
+---Add an item request to the target stack.
+---@private
+---@param kind GuiInventorySlot.ItemRequestKind
+---@param item GuiInventorySlot.ItemCount
+function SlotObject.prototype:add_item_request(kind, item)
+    if not self.target_inventory or not self.target_stack_index then return end
+    if not self.target_inventory.valid then return end
+    if not self.target_inventory.index or not self.target_inventory.entity_owner then return end
+
+    local item_request_proxy = self.target_inventory.entity_owner.item_request_proxy
+
+    local plan_list
+    if item_request_proxy then
+        plan_list = kind == SlotObject.item_request_kind.insert and item_request_proxy.insert_plan or item_request_proxy.removal_plan
+    else
+        plan_list = {}
+    end
+
+    -- Find plan that matches item or create one
+    local plan = nil
+    for _, x in ipairs(plan_list) do
+        if x.id.name == item.name and (x.id.quality or "normal") == item.quality then
+            plan = x
+            break
+        end
+    end
+    if not plan then
+        plan = {
+            id = {
+                name = item.name,
+                quality = item.quality,
+            },
+            items = {},
+        }--[[@as BlueprintInsertPlan]]
+        table.insert(plan_list, plan)
+    end
+
+    if not plan.items.in_inventory then
+        plan.items.in_inventory = {}
+    end
+
+    -- Find matching inventory position or create one
+    local inventory_position = nil
+    for _, x in ipairs(plan.items.in_inventory) do
+        if x.inventory == self.target_inventory.index and x.stack + 1 == self.target_stack_index then
+            inventory_position = x
+            break
+        end
+    end
+    if not inventory_position then
+        inventory_position = {
+            inventory = self.target_inventory.index,
+            stack = self.target_stack_index,
+            count = 0,
+        }--[[@as InventoryPosition]]
+        table.insert(plan.items.in_inventory, inventory_position)
+    end
+
+    inventory_position.count = inventory_position.count + item.count
+
+    -- Apply
+    if item_request_proxy then
+        if kind == SlotObject.item_request_kind.insert then
+            item_request_proxy.insert_plan = plan_list
+        else
+            item_request_proxy.removal_plan = plan_list
+        end
+    else
+        item_request_proxy = self.target_inventory.entity_owner.surface.create_entity{
+            name = "item-request-proxy",
+            position = self.target_inventory.entity_owner.position,
+            force = self.target_inventory.entity_owner.force,
+            preserve_ghosts_and_corpses = true,
+            target = self.target_inventory.entity_owner,
+            modules = kind == SlotObject.item_request_kind.insert and plan_list or {},
+            removal_plan = kind == SlotObject.item_request_kind.remove and plan_list or nil,
+        }
+        if not item_request_proxy then
+            -- Entity creation failed
+            return
+        end
+    end
+end
+
 ---Refresh the appearance of the GUI element to reflect the contents of the target.
 function SlotObject.prototype:refresh()
     local target_stack = self:get_target_stack()
@@ -276,8 +399,11 @@ function SlotObject.prototype:handle_pick_item(player)
     local target_stack = self:get_target_stack()
     if not cursor_stack or not target_stack then return end
 
+    local cursor_ghost = not cursor_stack.valid_for_read and player.cursor_ghost--[[@as ItemIDAndQualityIDPair?]] or nil
+
     if SlotObject.real_player_controllers[player.controller_type] then
-        if -- If they should be stackable to each other
+        if
+            -- If stacks should be stackable to each other
             cursor_stack.valid_for_read and
             target_stack.valid_for_read and
             target_stack.name == cursor_stack.name and
@@ -291,10 +417,14 @@ function SlotObject.prototype:handle_pick_item(player)
             local old_cursor_count = cursor_stack.count
             target_stack.transfer_stack(cursor_stack)
 
+            if target_stack.count == target_stack.prototype.stack_size then
+                self:remove_item_requests(SlotObject.item_request_kind.insert)
+            end
+
             if cursor_stack.count < old_cursor_count then
                 self:play_sound(player, "drop", target_stack)
             end
-        else
+        elseif not cursor_ghost then
             -- Otherwise, try swapping
             local ret = target_stack.swap_stack(cursor_stack)
 
@@ -304,7 +434,12 @@ function SlotObject.prototype:handle_pick_item(player)
             if ret and target_stack.valid_for_read then
                 self:play_sound(player, "drop", target_stack)
             end
+        else
+            --
         end
+
+    elseif player.controller_type == defines.controllers.remote then
+
     end
 
     self:refresh()
@@ -332,6 +467,9 @@ function SlotObject.prototype:handle_cursor_split(player)
                 self:play_sound(player, "pick", cursor_stack)
             end
         end
+
+    elseif player.controller_type == defines.controllers.remote then
+
     end
 
     self:refresh()
